@@ -12,6 +12,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Clear loading message
       activitiesList.innerHTML = "";
+      
+      // Clear and reset activity dropdown
+      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -20,11 +23,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
+        // Create participants list HTML
+        let participantsHtml = "";
+        if (details.participants.length > 0) {
+          participantsHtml = `
+            <p><strong>Current Participants:</strong></p>
+            <ul class="participants-list">
+              ${details.participants.map(email => `
+                <li class="participant-item">
+                  <span class="participant-email">${email}</span>
+                  <button class="cancel-btn" onclick="cancelRegistration('${name}', '${email}')">Cancel Registration</button>
+                </li>
+              `).join('')}
+            </ul>
+          `;
+        }
+
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          ${participantsHtml}
         `;
 
         activitiesList.appendChild(activityCard);
@@ -62,6 +82,9 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        
+        // Refresh the activities list to reflect the change
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
@@ -80,6 +103,50 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Error signing up:", error);
     }
   });
+
+  // Function to cancel student registration
+  async function cancelRegistration(activityName, email) {
+    if (!confirm(`Are you sure you want to cancel registration for ${email} in ${activityName}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/activities/${encodeURIComponent(activityName)}/signup?email=${encodeURIComponent(email)}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const result = await response.json();
+
+      if (response.ok) {
+        messageDiv.textContent = result.message;
+        messageDiv.className = "success";
+        
+        // Refresh the activities list to reflect the change
+        fetchActivities();
+      } else {
+        messageDiv.textContent = result.detail || "An error occurred during cancellation";
+        messageDiv.className = "error";
+      }
+
+      messageDiv.classList.remove("hidden");
+
+      // Hide message after 5 seconds
+      setTimeout(() => {
+        messageDiv.classList.add("hidden");
+      }, 5000);
+    } catch (error) {
+      messageDiv.textContent = "Failed to cancel registration. Please try again.";
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+      console.error("Error canceling registration:", error);
+    }
+  }
+
+  // Make cancelRegistration available globally so it can be called from onclick
+  window.cancelRegistration = cancelRegistration;
 
   // Initialize app
   fetchActivities();
