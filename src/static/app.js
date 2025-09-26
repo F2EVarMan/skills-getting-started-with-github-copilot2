@@ -4,14 +4,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
 
+  // 初始化语言设置
+  initializeLanguage();
+
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
-      const response = await fetch("/activities");
+      const response = await fetch(`/activities?lang=${currentLanguage}`);
       const activities = await response.json();
 
       // Clear loading message
       activitiesList.innerHTML = "";
+
+      // Clear activity select options (except the default one)
+      const defaultOption = activitySelect.querySelector('option[value=""]');
+      activitySelect.innerHTML = '';
+      activitySelect.appendChild(defaultOption);
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -19,12 +27,16 @@ document.addEventListener("DOMContentLoaded", () => {
         activityCard.className = "activity-card";
 
         const spotsLeft = details.max_participants - details.participants.length;
+        
+        // 获取本地化的活动信息
+        const localizedActivity = t(`activities.${name}`);
+        const displayName = localizedActivity && localizedActivity.name ? localizedActivity.name : name;
 
         activityCard.innerHTML = `
-          <h4>${name}</h4>
+          <h4>${displayName}</h4>
           <p>${details.description}</p>
-          <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <p><strong>${t('schedule')}:</strong> ${details.schedule}</p>
+          <p><strong>${t('availability')}:</strong> ${spotsLeft} ${t('spotsLeft')}</p>
         `;
 
         activitiesList.appendChild(activityCard);
@@ -32,11 +44,11 @@ document.addEventListener("DOMContentLoaded", () => {
         // Add option to select dropdown
         const option = document.createElement("option");
         option.value = name;
-        option.textContent = name;
+        option.textContent = displayName;
         activitySelect.appendChild(option);
       });
     } catch (error) {
-      activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
+      activitiesList.innerHTML = `<p>${t('failedToLoad')}</p>`;
       console.error("Error fetching activities:", error);
     }
   }
@@ -50,7 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const response = await fetch(
-        `/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}`,
+        `/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}&lang=${currentLanguage}`,
         {
           method: "POST",
         }
@@ -59,11 +71,20 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await response.json();
 
       if (response.ok) {
-        messageDiv.textContent = result.message;
+        messageDiv.textContent = result.message || t('signUpSuccess');
         messageDiv.className = "success";
         signupForm.reset();
       } else {
-        messageDiv.textContent = result.detail || "An error occurred";
+        let errorMessage = result.detail || t('signUpFailed');
+        
+        // 本地化错误消息
+        if (result.detail === "Student already signed up") {
+          errorMessage = t('studentAlreadySignedUp');
+        } else if (result.detail === "Activity not found") {
+          errorMessage = t('activityNotFound');
+        }
+        
+        messageDiv.textContent = errorMessage;
         messageDiv.className = "error";
       }
 
@@ -74,7 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.classList.add("hidden");
       }, 5000);
     } catch (error) {
-      messageDiv.textContent = "Failed to sign up. Please try again.";
+      messageDiv.textContent = t('signUpFailed');
       messageDiv.className = "error";
       messageDiv.classList.remove("hidden");
       console.error("Error signing up:", error);
@@ -83,4 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initialize app
   fetchActivities();
+
+  // Make fetchActivities globally accessible for language switching
+  window.fetchActivities = fetchActivities;
 });
